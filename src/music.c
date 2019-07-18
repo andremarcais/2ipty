@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <pty.h>
 #include <stdio.h>
+#include <string.h>
 
 
 void create();
@@ -13,16 +14,17 @@ void skip();
 
 int main(int argc, char* argv[]) {
   if(argc != 2) {
-    perror("Ussage error.");
+    dprintf(2,"Ussage error.");
     return 1;  }
 
-  if(argv[1] == "create")          create();
-  if(argv[1] == "play_pause")      play_pause();
-  if(argv[1] == "forward")         forward();
-  if(argv[1] == "backward")        backward();
-  if(argv[1] == "forward_a_lot")   forward_a_lot();
-  if(argv[1] == "backward_a_lot")  backward_a_lot();
-  if(argv[1] == "skip")            skip();
+#define IF_ARGV(FN) if(!strcmp( argv[1], #FN )) FN()
+  IF_ARGV(create);
+  IF_ARGV(play_pause);
+  IF_ARGV(forward);
+  IF_ARGV(backward);
+  IF_ARGV(forward_a_lot);
+  IF_ARGV(backward_a_lot);
+  IF_ARGV(skip);
 
   return 0;
 }
