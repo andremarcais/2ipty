@@ -23,6 +23,7 @@ int main(int argc, char* argv[]) {
   if(argc != 2) {
     dprintf(2,"Ussage error.\n");
     return 1;  }
+  perror("test");
 
 #define IF_ARGV(FN) if(!strcmp( argv[1], #FN )) FN()
   IF_ARGV(create);
@@ -52,13 +53,12 @@ void conf_pty(int ptm, int tty);
 void run_pty(int ptm, int sig, pid_t pid);
 
 void create() {
-  char const* const cmd = "bash";
+  char const* const cmd = "mpsyt";
   struct winsize    sz;
   int               ptm;
   pid_t             pid;        // pid of cmd
   int               sfd;        // signal fd
 
-  sfd = make_sfd();
   conf_tty(0);
   ioctl(0,TIOCGWINSZ, &sz);
 
@@ -66,7 +66,9 @@ void create() {
   case 0: execlp(cmd,cmd, NULL);
   case -1: perror("failed to fork"); exit(2); }
 
+  sfd = make_sfd();
   run_pty(ptm,sfd,pid);
+
   wait(NULL);
   close(ptm); close(sfd);
 }
@@ -93,6 +95,7 @@ void run_pty(int ptm, int sfd, pid_t pid) {
         struct signalfd_siginfo info;
         read(sfd,&info,sizeof(info));
         uint32_t const sig = info.ssi_signo;
+        dprintf(2,"Got signal %d\n",sig);
         switch(sig) {
         case SIGCHLD:
           return;
@@ -100,7 +103,8 @@ void run_pty(int ptm, int sfd, pid_t pid) {
         case SIGTSTP:
         case SIGINT:
         case SIGHUP:
-          kill(pid,sig);
+          dprintf(2,"Handling %d\n",pid);
+          if( kill(pid,sig) == -1 ) perror("failed to kill");
         }
       }
     }
