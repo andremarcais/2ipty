@@ -52,7 +52,7 @@ void conf_pty(int ptm, int tty);
 void run_pty(int ptm, int sig, pid_t pid);
 
 void create() {
-  char const* const cmd = "mpsyt";
+  char const* const cmd = "bash";
   struct winsize    sz;
   int               ptm;
   pid_t             pid;        // pid of cmd
@@ -62,36 +62,55 @@ void create() {
   conf_tty(0);
   ioctl(0,TIOCGWINSZ, &sz);
 
-  // fork, run cmd as sess leader controlled by pts
   switch(pid = forkpty(&ptm,NULL,NULL,&sz)) {
   case 0: execlp(cmd,cmd, NULL);
-  case -1: perror("failed to fork"); exit(2);
-  default: run_pty(ptm,sfd,pid); wait(NULL);
-  }
+  case -1: perror("failed to fork"); exit(2); }
+
+  run_pty(ptm,sfd,pid);
+  wait(NULL);
+  close(ptm); close(sfd);
 }
 
 void run_pty(int ptm, int sfd, pid_t pid) {
   char buf;
-  struct pollfd fds[] = { {fd: ptm, events: POLLIN},
-                          {fd: 0,   events: POLLIN}, };
+  struct pollfd fds[] = { { fd: ptm, events: POLLIN },
+                          { fd: 0,   events: POLLIN },
+                          { fd: sfd, events: POLLIN }, };
+  int const nfds = sizeof(fds)/sizeof(fds[0]);
   while(1) {
     conf_pty(ptm,0);
-    if(poll(fds,2,-1) == -1) { perror("failed to poll in run_pty"); exit(6); }
+    if(poll(fds,nfds,-1) == -1) { perror("failed to poll in run_pty"); exit(6); }
     else {
       if(fds[0].revents & POLLIN) {
         ssize_t n = read(ptm,&buf,1);
         if(n > 0) write(1,&buf,1); }
+
       if(fds[1].revents & POLLIN) {
         ssize_t n = read(0,&buf,1);
         if(n > 0) write(ptm,&buf,1); }
+
+      if(fds[2].revents & POLLIN) {
+        struct signalfd_siginfo info;
+        read(sfd,&info,sizeof(info));
+        uint32_t const sig = info.ssi_signo;
+        switch(sig) {
+        case SIGCHLD:
+          return;
+        case SIGCONT:
+        case SIGTSTP:
+        case SIGINT:
+        case SIGHUP:
+          kill(pid,sig);
+        }
+      }
     }
   }
 }
 
 int make_sfd() {
   sigset_t set;
-  sigemptyset(&set);  sigaddset(&set,SIGCONT);
-  sigaddset(&set,SIGTSTP);  sigaddset(&set,SIGINT);  sigaddset(&set,SIGHUP);
+  sigemptyset(&set);  sigaddset(&set,SIGCONT);  sigaddset(&set,SIGTSTP);
+  sigaddset(&set,SIGINT);  sigaddset(&set,SIGHUP);  sigaddset(&set,SIGCHLD);
   if(sigprocmask(SIG_SETMASK,&set,NULL)) {
     perror("failed to make signal fd");
     exit(8);
