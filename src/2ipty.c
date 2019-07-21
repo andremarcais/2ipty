@@ -14,51 +14,26 @@
 #include <fcntl.h>
 
 
-static char const* const FIFO_FILE = "/tmp/my-music-cntl.fifo";
-
-void create();
-void play_pause();
-void forward();
-void backward();
-void forward_a_lot();
-void backward_a_lot();
-void skip();
+void create(char const* const cmd, char const* const inf);
 
 int main(int argc, char* argv[]) {
-  if(argc != 2) {
-    dprintf(2,"Ussage error.\n");
+  if(argc != 3) {
+    dprintf(2,"Ussage error: %s <cmd> <input path>\n",argv[0]);
     return 1;  }
 
-#define IF_ARGV(FN) if(!strcmp( argv[1], #FN )) FN()
-  IF_ARGV(create);
-  IF_ARGV(play_pause);
-  IF_ARGV(forward);
-  IF_ARGV(backward);
-  IF_ARGV(forward_a_lot);
-  IF_ARGV(backward_a_lot);
-  IF_ARGV(skip);
+  create( argv[1], argv[2] );
 
   return 0;
 }
 
 
-void create();// { ... }
-void play_pause() {}
-void forward() {}
-void backward() {}
-void forward_a_lot() {}
-void backward_a_lot() {}
-void skip() {}
+int  make_sfd(); // make signal fd, ret fd
+int  make_inf(char const* const path); // make 2nd input file, ret fd
+void conf_tty(int fd); // config this proc's term
+void conf_pty(int ptm, int tty); // config the psudo term
+void run_pty(int ptm, int sig, pid_t pid, int inf); // main loop for this app
 
-
-int  make_sfd();
-int  make_inf();
-void conf_tty(int fd);
-void conf_pty(int ptm, int tty);
-void run_pty(int ptm, int sig, pid_t pid, int inf);
-
-void create() {
-  char const* const cmd = "mpsyt";
+void create(char const* const cmd, char const* const inp) {
   struct winsize sz;
   int            ptm;
   pid_t          pid;           // pid of cmd
@@ -72,13 +47,13 @@ void create() {
   case 0: execlp(cmd,cmd, NULL);
   case -1: perror("failed to fork"); exit(2); }
 
-  inf = make_inf();
+  inf = make_inf(inp);
   sfd = make_sfd();
   run_pty(ptm,sfd,pid,inf);
 
   wait(NULL);
   close(ptm); close(sfd); close(inf);
-  unlink(FIFO_FILE);
+  unlink(inp);
 }
 
 void run_pty(int ptm, int sfd, pid_t pid, int inf) {
@@ -137,15 +112,15 @@ int make_sfd() {
   } else return fd;
 }
 
-int make_inf() {
+int make_inf(char const* const path) {
   for(int x = 1; 1; --x)
-    if(mkfifo(FIFO_FILE,0600) == -1) {
+    if(mkfifo(path,0600) == -1) {
       perror("failed to create fifo");
-      if(unlink(FIFO_FILE) == -1)
+      if(unlink(path) == -1)
         perror("failed to delete fifo");
       if(x == 0) exit(8);
     } else break;
-  int fd = open( FIFO_FILE, O_NONBLOCK );
+  int fd = open( path, O_NONBLOCK );
   if(fd == -1) {
     perror("failed to open fifo");
     exit(9); }
