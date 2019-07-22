@@ -65,8 +65,9 @@ void run_pty(int ptm, int sfd, pid_t pid, int inf) {
   int const nfds = sizeof(fds)/sizeof(fds[0]);
   while(1) {
     conf_pty(ptm,0);
-    if(poll(fds,nfds,-1) == -1) { perror("failed to poll in run_pty"); exit(6); }
+    if(poll(fds,nfds,-1) == -1) {perror("failed to poll in run_pty");exit(6);}
     else {
+
       if(fds[0].revents & POLLIN) {    // print contents of pty to tty
         ssize_t n = read(ptm,&buf,1);
         if(n > 0) write(1,&buf,1); }
@@ -120,7 +121,7 @@ int make_inf(char const* const path) {
         perror("failed to delete fifo");
       if(x == 0) exit(8);
     } else break;
-  int fd = open( path, O_NONBLOCK );
+  int fd = open( path, O_NONBLOCK | O_RDWR ); // DON'T WRITE TO THIS FD!!!
   if(fd == -1) {
     perror("failed to open fifo");
     exit(9); }
