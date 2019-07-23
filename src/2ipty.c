@@ -117,15 +117,10 @@ int make_sfd() {
 }
 
 int make_inf(char const* const path) {
-  for(int x = 1; 1; --x) // retry mkfifo
-    if(mkfifo(path,0600)/*try to make input fifo*/== -1) { perror("failed to create fifo");
-      if( unlink(path)/*try to delete old fifo*/== -1) perror("failed to delete fifo");
-      if( x == 0 ) {perror("could not recover");exit(8);} // don't retry if 2nd try, exit and fail
-    } else break; // don't retry if successful, continue
-
-  int fd = open( path, O_NONBLOCK | O_RDWR ); // DON'T WRITE TO THIS FD!!!
+  if( mkfifo(path,0600)/*try to make input fifo*/== -1) {perror("failed to create fifo");exit(8);}
+  int fd = open( path, O_NONBLOCK | O_RDWR ); // open the fifo
   if(fd == -1) { perror("failed to open fifo"); exit(9); }
-  return fd; // return fd if no errors
+  return fd; // return fd if no errors (DON'T WRITE TO THIS FD!!!)
 }
 
 void conf_pty(int ptm, int tty) {
